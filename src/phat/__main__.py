@@ -127,7 +127,7 @@ def create_key(directory: str) -> None:
         userfh.write(json.dumps({"name": name}))
 
     with open(j("keys.db"), "wb") as keysfh:
-        keysfh.write(encrypt(psw.encode("utf8"), b""))
+        keysfh.write(encrypt(psw.encode("utf8"), b"{}"))
 
     del psw  # Safer to delete it immediately after use
 

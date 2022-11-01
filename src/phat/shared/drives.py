@@ -51,7 +51,7 @@ class KeyHandler(object):
     def authenticate(self, password: str) -> None:
         self.password = password
         with open_with_key(self.keydb, password, "utf8") as fh:
-            self.entries = {" ".join(e[:-1]): e[-1] for e in [e.split(" ") for e in fh.read().split("\n") if e.strip()]}
+            self.entries = json.loads(fh.read())
 
     def generate_key(self) -> str:
         return hashlib.sha512("".join([random.choice(string.printable) for i in range(32)]).encode()).hexdigest()
@@ -69,7 +69,7 @@ class KeyHandler(object):
         key = self.generate_key()
         self.entries[pid] = key
         with open_with_key(self.keydb, self.password, "utf8") as fh:
-            fh.write("\n".join([f"{k} {v}" for k, v in self.entries.items()]))
+            fh.write(json.dumps(self.entries))
 
         if auto_close:
             del self.entries, self.password
