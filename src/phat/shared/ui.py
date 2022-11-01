@@ -36,8 +36,6 @@ loading_keys = "-\\|/"
 
 # Handlers
 def confirm(live) -> None:
-    # live.console.line = lambda: 0
-    # live.stop()
     k = None
     while k not in ["y", "n", keys.CTRL_C]:
         k = readchar()
