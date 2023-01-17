@@ -4,6 +4,7 @@
 # Modules
 import os
 import json
+import shutil
 from rich.console import Console
 from iipython import readchar, keys
 
@@ -140,7 +141,7 @@ def change_options(directory: str) -> None:
     while True:
         opt = select_menu(
             "Select an action to perform.",
-            ["Change name", "Change password", "Exit"],
+            ["Change name", "Change password", "Delete PHAT", "Exit"],
             return_idx = True
         )
         if opt == 0:
@@ -185,6 +186,21 @@ def change_options(directory: str) -> None:
             readchar()
 
         elif opt == 2:
+            ui.display("[red]This action cannot be undone! Proceed? \[Y]es \[N]o[/]")
+            if str(readchar() or "").lower() != "y":
+                continue
+
+            try:
+                shutil.rmtree(directory)
+                ui.display("[green]Action completed successfully.[/]\nPress [yellow]any key[/] to exit.")
+                return readchar()
+
+            except Exception as e:
+                ui.display(f"[red]Failed to remove: {e}[/]\nPress [yellow]any key[/] to return.")
+                readchar()
+                continue
+
+        elif opt == 3:
             return
 
 # Main live loop

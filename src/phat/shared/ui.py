@@ -2,6 +2,7 @@
 
 # Modules
 import shutil
+import inspect
 from time import sleep
 from typing import Tuple
 from iipython import readchar, keys
@@ -11,8 +12,8 @@ from rich.panel import Panel
 from rich.align import Align
 
 from phat import __version__
-from phat.errors import DeclinedKeyRequest
 from phat.shared.drives import DriveHandler
+from phat.errors import DeclinedKeyRequest, SignatureError
 
 # Primary UI class
 class UI(object):
@@ -63,7 +64,8 @@ def get_input(text: str, replace: str = None) -> str:
 
     return res
 
-def request_key(pid: str) -> Tuple[bool, str]:
+def request_key(pid: str, enable_signature: bool = True) -> Tuple[bool, str]:
+    caller = inspect.stack()[1].filename
     with Live(refresh_per_second = 4) as live:
         live.console.clear()
         idx, ui.live = 0, live
@@ -103,16 +105,29 @@ def request_key(pid: str) -> Tuple[bool, str]:
                     ui.display("[red]Invalid password specified.[/]\nPress any key to try again.")
                     readchar()
 
-            fmt = lambda x: f"Hello, [green]{usb.get_user()}[/]!\n\n{x}\n[green]\\[Y]es[/]  or  [red]\\[N]o[/]"  # noqa
+            fmt = lambda x = None: f"Hello, [green]{usb.get_user()}[/]!\n\n{x}\n[green]\\[Y]es[/]  or  [red]\\[N]o[/]"  # noqa
             if usb.has_key(pid):  # noqa: W601
-                ui.display(fmt(f"Confirm authentication for [yellow]{pid}[/]?"))
-                confirm(live)
-                return True, usb.get_key(pid)
+                try:
+                    usb.verify_key_sig(pid, caller)
+                    ui.display(fmt(f"Confirm authentication for [yellow]{pid}[/]?"))
+                    confirm(live)
+                    return True, usb.get_key(pid)
+
+                except SignatureError:
+                    ui.display("[red]Signature digest matching failed!\nThis program is untrustworthy and the 2FA request has been blocked.[/]\n\n[yellow]Press any key to cancel.[/]")
+                    readchar()
+                    raise DeclinedKeyRequest
 
             else:
                 ui.display(fmt(f"Create new key for [yellow]{pid}[/]?"))
                 confirm(live)
-                return False, usb.create_key(pid)
+                try:
+                    return False, usb.create_key(pid, enable_signature, caller)
+
+                except SignatureError:
+                    ui.display("[red]Failed to generate signature for executable.\nSomething shady might be going on.\n\nPress any key to cancel.")
+                    readchar()
+                    raise DeclinedKeyRequest
 
         except FileNotFoundError:
             ui.display("[red]The key USB was removed prior to authentication.[/]\nPress [yellow]any key[/] to cancel.")

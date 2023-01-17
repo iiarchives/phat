@@ -8,8 +8,10 @@ import string
 import psutil
 import hashlib
 
-from phat.errors import NotAuthenticated
 from phat.encryption import open_with_key
+from phat.errors import (
+    NotAuthenticated, KeyGenerationError, KeySignatureMismatch
+)
 
 # Platform-dependent
 if os.name == "posix":
@@ -62,12 +64,35 @@ class KeyHandler(object):
 
         return pid in self.entries
 
-    def create_key(self, pid: str, auto_close: bool = True) -> str:
+    def generate_sig(self, fp: str) -> str:
+        try:
+            with open(fp, "rb") as fh:
+                data = fh.read()
+
+            return hashlib.sha256(data).hexdigest()
+
+        except Exception:
+            del self.entries, self.password
+            raise KeyGenerationError
+
+    def verify_key_sig(self, pid: str, fp: str) -> bool:
+        if not hasattr(self, "entries"):
+            raise NotAuthenticated
+
+        sig = self.entries.get(pid, {}).get("sig")
+        r = (self.generate_sig(fp) == sig) or (sig is None)
+        if r:
+            return r
+
+        del self.entries, self.password
+        raise KeySignatureMismatch
+
+    def create_key(self, pid: str, enable_signature: bool, fp: str, auto_close: bool = True) -> str:
         if not hasattr(self, "entries"):
             raise NotAuthenticated
 
         key = self.generate_key()
-        self.entries[pid] = key
+        self.entries[pid] = {"key": key, "sig": (self.generate_sig(fp) if enable_signature else None)}
         with open_with_key(self.keydb, self.password, "utf8") as fh:
             fh.write(json.dumps(self.entries))
 
@@ -80,7 +105,7 @@ class KeyHandler(object):
         if self.entries is None:
             raise NotAuthenticated
 
-        key = self.entries[pid]
+        key = self.entries.get(pid, {}).get("key")
         if auto_close:
             del self.entries, self.password
 
